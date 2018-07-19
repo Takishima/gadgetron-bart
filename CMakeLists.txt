@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(bart_gadget)
+project(bart_gadget CXX)
 
 cmake_policy(SET CMP0042 NEW)  # CMake 3.0 ``MACOSX_RPATH`` is enabled by default.
+
+# ==============================================================================
+
+option(USE_CUDA "Built using support for CUDA (should match the library BART(main) compile option)" OFF)
+if(USE_CUDA)
+  find_package(CUDA)
+endif(USE_CUDA)
 
 # ==============================================================================
 
@@ -47,10 +54,12 @@ if(NOT GADGETRON_CMAKE_MODULES)
    Try to set GADGETRON_HOME environment variable.")
 endif(NOT GADGETRON_CMAKE_MODULES)
 
-set(CMAKE_MODULE_PATH ${GADGETRON_CMAKE_MODULES})
+list(APPEND CMAKE_MODULE_PATH ${GADGETRON_CMAKE_MODULES})
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # ==============================================================================
 
+find_package(FFTW REQUIRED)
 find_package(ISMRMRD REQUIRED)
 find_package(Gadgetron REQUIRED)
 
@@ -65,6 +74,17 @@ find_package(ACE REQUIRED)
 find_package(Armadillo 4.600 REQUIRED)
 
 set(CMAKE_INSTALL_PREFIX ${GADGETRON_HOME})
+
+find_file(BART_LIBMAIN
+  NAMES libbartmain.a libbartmain.so 
+  PATH /usr/local/bart /opt/bart /opt/local/ /usr/local /usr
+  PATH_SUFFIXES lib lib/static lib64)
+
+if(NOT BART_LIBMAIN)
+  message(FATAL_ERROR "Unable to locate the BART(main) library")
+else(NOT BART_LIBMAIN)
+  message(STATUS "Using BART(main) library: ${BART_LIBMAIN}")
+endif(NOT BART_LIBMAIN)
 
 # ------------------------------------------------------------------------------
 
@@ -111,8 +131,18 @@ target_link_libraries(gadgetron_baselbart
   optimized ${ACE_LIBRARIES}
   debug ${ACE_DEBUG_LIBRARY}   
   ${Boost_LIBRARIES}
+  ${BART_LIBMAIN}
+  lapacke
+  ${FFTWF_LIB}
+  ${FFTWF_THREADS_LIB}
   )
-  
+
+if(USE_CUDA)
+    CUDA_ADD_CUFFT_TO_TARGET(gadgetron_baselbart)
+    CUDA_ADD_CUBLAS_TO_TARGET(gadgetron_baselbart)
+    target_link_libraries(gadgetron_baselbart ${CUDA_LIBRARIES})
+endif(USE_CUDA)
+
 if(ARMADILLO_FOUND)
   target_link_libraries(gadgetron_baselbart gadgetron_toolbox_cpucore_math )
 endif()
