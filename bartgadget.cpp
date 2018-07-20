@@ -31,15 +31,12 @@ namespace Gadgetron {
 	  dp{}
      {}
 
-     std::vector<size_t> BartGadget::read_BART_hdr(const char *filename)
+     std::vector<size_t> BartGadget::read_BART_hdr(const std::string& filename)
      {
-	  std::string filename_s = std::string(filename) + std::string(".hdr");
-	  std::ifstream infile(filename_s);
-	  if (!infile.is_open())
-	       GERROR("Failed to open file: %s\n", filename_s.c_str());
-
 	  std::vector<size_t> DIMS;
-	  if (infile.is_open())
+	  
+	  std::ifstream infile(filename + ".hdr");
+	  if (infile)
 	  {
 	       std::vector<std::string> tokens;
 	       std::string line;
@@ -50,55 +47,65 @@ namespace Gadgetron {
 	       }
 
 	       // Parse the dimensions
-	       const std::string s = tokens[1];
-	       std::stringstream ss(s);
+	       std::stringstream ss(tokens[1]);
 	       std::string items;
 	       while (getline(ss, items, ' ')) {
-		    DIMS.push_back(std::stoi(items, nullptr, 10));
+		    DIMS.push_back(std::stoi(items));
 	       }
-	       infile.close();
+	  }
+	  else
+	  {
+	       GERROR("Failed to header of file: %s\n", filename.c_str());
 	  }
 
-	  return(DIMS);
+	  return DIMS;
      }
 
 
-     std::pair< std::vector<size_t>, std::vector<std::complex<float> > >
-     BartGadget::read_BART_files(const char *filename)
+     std::pair<std::vector<size_t>, std::vector<std::complex<float>>>
+     BartGadget::read_BART_files(const std::string& filename)
      {
 	  // Load the header file
 	  auto DIMS = read_BART_hdr(filename);
 
 	  // Load the cfl file
-	  std::string filename_s = std::string(filename) + std::string(".cfl");
-	  std::ifstream infile(filename_s, std::ifstream::binary);
-	  if (!infile.is_open())
-	       GERROR("Failed to open file: %s\n", filename_s.c_str());
+	  std::ifstream infile(filename + ".cfl", std::ifstream::binary);
+	  if (!infile)
+	  {
+	       GERROR("Failed to open data of file: %s\n", filename.c_str());
+	       return std::make_pair(DIMS, std::vector<std::complex<float>>());
+	  }
+	  else
+	  {
+	       // First determine data size
+	       infile.seekg(0, infile.end);
+	       size_t size(infile.tellg());
 
-	  infile.seekg(0, infile.end);
-	  size_t size = static_cast<long>(infile.tellg());
-	  infile.seekg(0);
-	  std::vector<float> buffer(size);
-	  infile.read(reinterpret_cast<char*>(&buffer[0]), size);
-	  infile.close();
-	  // Reformat the data
-	  std::vector< std::complex<float> > Data;
-	  Data.reserve(buffer.size() / 2);
+	       // Now read data from file
+	       infile.seekg(0);
+	       std::vector<std::complex<float>> Data(size/sizeof(float)/2.);
+	       infile.read(reinterpret_cast<char*>(Data.data()), size);
 
-	  for (size_t count = 0, buffer_size = buffer.size(); count != buffer_size; count += 2)
-	       Data.push_back(std::complex<float>(buffer[count], buffer[count + 1]));
-
-	  return (std::pair< std::vector<size_t>, std::vector< std::complex<float> > >(DIMS, Data));
+	       return std::make_pair(DIMS, Data);
+	  }
      }
 
-     std::string & BartGadget::getOutputFilename(const std::string & bartCommandLine)
+     std::string BartGadget::getOutputFilename(const std::string& bartCommandLine)
      {
-	  static std::vector<std::string> outputFile;
 	  boost::char_separator<char> sep(" ");
+#if 0
+	  boost::tokenizer<boost::char_separator<char>,
+			   std::string::reverse_iterator> tokens(bartCommandLine.rbegin(),
+								 bartCommandLine.rend());
+	  auto tok(*tokens.begin());
+	  return std::string(tok.rbegin(), tok.rend());
+#else 
+	  std::vector<std::string> outputFile;
 	  boost::tokenizer<boost::char_separator<char> > tokens(bartCommandLine, sep);
-	  for (auto itr = tokens.begin(), tokens_end = tokens.end(); itr != tokens_end; ++itr)
-	       outputFile.push_back(*itr);
-	  return (outputFile.back());
+	  for (auto tok: tokens)
+	       outputFile.push_back(tok);
+	  return outputFile.back();
+#endif /* 0 */
      }
 
      inline void BartGadget::cleanup(std::string &createdFiles)
@@ -185,7 +192,7 @@ namespace Gadgetron {
 	  }
 
 	  char out_str[512] = {'\0'};
-	  int ret(in_mem_bart_main(argc, argv, out_str));
+	  auto ret(in_mem_bart_main(argc, argv, out_str));
 	  if (ret == 0) {
 	       if (strlen(out_str) > 0) {
 		    GINFO(out_str);
@@ -215,9 +222,9 @@ namespace Gadgetron {
 	  }
 
 
-	  for (size_t ii = 0, h_encoding_size = h.encoding.size(); ii < h_encoding_size; ++ii)
+	  for (const auto& enc: h.encoding)
 	  {
-	       ISMRMRD::EncodingSpace recon_space = h.encoding[ii].reconSpace;
+	       auto recon_space = enc.reconSpace;
 
 	       GDEBUG_CONDITION_STREAM(isVerboseON.value(), "BartGadget::process_config: Encoding matrix size: " << recon_space.matrixSize.x << " " << recon_space.matrixSize.y << " " << recon_space.matrixSize.z);
 	       GDEBUG_CONDITION_STREAM(isVerboseON.value(), "BartGadget::process_config: Encoding field_of_view : " << recon_space.fieldOfView_mm.x << " " << recon_space.fieldOfView_mm.y << " " << recon_space.fieldOfView_mm.z);
@@ -228,13 +235,13 @@ namespace Gadgetron {
 	       dp.FOV_y = static_cast<uint16_t>(recon_space.fieldOfView_mm.y);
 	       dp.FOV_z = static_cast<uint16_t>(recon_space.fieldOfView_mm.z);
 
-	       if (!h.encoding[ii].parallelImaging)
+	       if (!enc.parallelImaging)
 	       {
 		    GDEBUG_STREAM("BartGadget::process_config: Parallel Imaging not enable...");
 	       }
 	       else
 	       {
-		    ISMRMRD::ParallelImaging p_imaging = *h.encoding[0].parallelImaging;
+		    auto p_imaging = *h.encoding.front().parallelImaging;
 		    GDEBUG_CONDITION_STREAM(isVerboseON.value(), "BartGadget::process_config: acceleration Factor along PE1 is " << p_imaging.accelerationFactor.kspace_encoding_step_1);
 		    GDEBUG_CONDITION_STREAM(isVerboseON.value(), "BartGadget::process_config: acceleration Factor along PE2 is " << p_imaging.accelerationFactor.kspace_encoding_step_2);
 		    dp.acc_factor_PE1 = p_imaging.accelerationFactor.kspace_encoding_step_1;
@@ -251,8 +258,7 @@ namespace Gadgetron {
 			 dp.reference_lines_PE1 = h.userParameters->userParameterLong[0].value;
 		    }
 
-		    std::string calib = *p_imaging.calibrationMode;
-
+		    auto calib = *p_imaging.calibrationMode;
 		    auto separate = (calib.compare("separate") == 0);
 		    auto embedded = (calib.compare("embedded") == 0);
 		    auto external = (calib.compare("external") == 0);
@@ -324,8 +330,7 @@ namespace Gadgetron {
 #endif // _WIN32
 
 	  // Check status of the folder containing the generated files (*.hdr & *.cfl)
-	  std::string generatedFilesFolder;
-	  static std::string outputFolderPath;
+	  
 	  if (BartWorkingDirectory_path.value().empty()){
 	       GERROR("Error: No BART working directory provided!");
 	       return GADGET_FAIL;
@@ -342,11 +347,9 @@ namespace Gadgetron {
 	  std::string threadId = boost::lexical_cast<std::string>(boost::this_thread::get_id());
 	  unsigned long threadNumber = 0;
 	  sscanf(threadId.c_str(), "%lx", &threadNumber);
-	  outputFolderPath = BartWorkingDirectory_path.value() + "bart_" + time_id + "_" + std::to_string(threadNumber) + "/";
-	  generatedFilesFolder = std::string(outputFolderPath);
+	  std::string outputFolderPath = BartWorkingDirectory_path.value() + "bart_" + time_id + "_" + std::to_string(threadNumber);
+	  std::string generatedFilesFolder = outputFolderPath;
                 
-	  generatedFilesFolder.pop_back();
-	
 	  boost::filesystem::path dir(generatedFilesFolder);
 	  if (!boost::filesystem::exists(dir) || !boost::filesystem::is_directory(dir)){
 	       if (boost::filesystem::create_directories(dir)){
@@ -377,7 +380,6 @@ namespace Gadgetron {
 	  /*** WRITE REFERENCE AND RAW DATA TO FILES ***/
 
 	  for (auto recon_bit: m1->getObjectPtr()->rbit_)
-	  // for (std::vector<IsmrmrdReconBit>::iterator it = m1->getObjectPtr()->rbit_.begin(), rbit_end = m1->getObjectPtr()->rbit_.end(); it != rbit_end; ++it)
 	  {
 	       // Grab a reference to the buffer containing the reference data
 	       hoNDArray< std::complex<float> >& data_ref = (*recon_bit.ref_).data_;
@@ -474,21 +476,31 @@ namespace Gadgetron {
 	  }
 
 	  std::string outputFile = getOutputFilename(Commands_Line);
+	  std::string outputFileReshape = outputFile + "_reshape";
 
 	  // Reformat the data back to gadgetron format
-	  auto header = read_BART_hdr(std::string(generatedFilesFolder + outputFile).c_str());
+	  auto header = read_BART_hdr(generatedFilesFolder + outputFile);
 	  cmd3 << "bart reshape 1023 " << header[0] << " " << header[1] << " " << header[2] << " " << header[3] << " " << header[9] * header[4] <<
-	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFile + std::string("_reshape");
-	  const auto cmd_s = cmd3.str();
-	  GDEBUG("%s\n", cmd_s.c_str());
-	  if (system(std::string("cd " + generatedFilesFolder + "&&" + cmd_s).c_str())) {
+	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape;
+
+	  if (!call_BART(cmd3.str())) {
+	       cleanup(outputFolderPath);
+	       return GADGET_FAIL;
+	  }
+	  
+	  /**** READ FROM BART FILES ***/
+	  std::vector<long> DIMS_OUT(16);
+	  std::complex<float>* data(reinterpret_cast<std::complex<float>*>(load_mem_cfl(outputFileReshape.c_str(), DIMS_OUT.size(), DIMS_OUT.data())));
+
+	  if (data == 0 || data == nullptr) {
+	       GERROR("Failed to retrieve data from in-memory CFL file!");
 	       cleanup(outputFolderPath);
 	       return GADGET_FAIL;
 	  }
 
-	  std::string outputfile_2 = getOutputFilename(cmd_s);
-	  /**** READ FROM BART FILES ***/
-	  std::pair< std::vector<size_t>, std::vector<std::complex<float> > > BART_DATA = read_BART_files(std::string(generatedFilesFolder + outputfile_2).c_str());
+	  // std::vector<std::size_t> DIMS_OUT;
+	  // std::vector<std::complex<float>> data;
+	  // std::tie(DIMS_OUT, data) = read_BART_files(generatedFilesFolder + outputfileReshape);
 
 	  if (!isBartFileBeingStored.value())
 	       cleanup(outputFolderPath);
@@ -498,31 +510,26 @@ namespace Gadgetron {
 
 	  // Grab data from BART files
 	  std::vector<size_t> BART_DATA_dims(1);
-	  BART_DATA_dims[0] = std::accumulate(BART_DATA.first.begin(), BART_DATA.first.end(), 1, std::multiplies<size_t>());
-	  hoNDArray<std::complex<float>> DATA = hoNDArray<std::complex<float>>(BART_DATA_dims, &BART_DATA.second[0]);
+	  BART_DATA_dims[0] = std::accumulate(DIMS_OUT.begin(), DIMS_OUT.end(), 1, std::multiplies<size_t>());
+	  hoNDArray<std::complex<float>> DATA(BART_DATA_dims, data);
+	  // hoNDArray<std::complex<float>> DATA(BART_DATA_dims, &data[0]);
 
 	  // The image array data will be [E0,E1,E2,1,N,S,LOC]
 	  std::vector<size_t> data_dims(7);
-	  data_dims[0] = BART_DATA.first[0];
-	  data_dims[1] = BART_DATA.first[1];
-	  data_dims[2] = BART_DATA.first[2];
-	  data_dims[3] = BART_DATA.first[3];
-	  data_dims[4] = BART_DATA.first[4];
-	  data_dims[5] = BART_DATA.first[5];
-	  data_dims[6] = BART_DATA.first[6];
+	  std::copy(DIMS_OUT.begin(), DIMS_OUT.begin()+7, data_dims.begin());
 
 	  DATA.reshape(data_dims);
 
 	  // Extract the first image from each time frame (depending on the number of maps generated by the user)
 	  std::vector<size_t> data_dims_Final(7);
-	  data_dims_Final[0] = BART_DATA.first[0];
-	  data_dims_Final[1] = BART_DATA.first[1];
-	  data_dims_Final[2] = BART_DATA.first[2];
-	  data_dims_Final[3] = BART_DATA.first[3];
+	  data_dims_Final[0] = DIMS_OUT[0];
+	  data_dims_Final[1] = DIMS_OUT[1];
+	  data_dims_Final[2] = DIMS_OUT[2];
+	  data_dims_Final[3] = DIMS_OUT[3];
 	  assert(header[4] > 0);
-	  data_dims_Final[4] = BART_DATA.first[4] / header[4];
-	  data_dims_Final[5] = BART_DATA.first[5];
-	  data_dims_Final[6] = BART_DATA.first[6];
+	  data_dims_Final[4] = DIMS_OUT[4] / header[4];
+	  data_dims_Final[5] = DIMS_OUT[5];
+	  data_dims_Final[6] = DIMS_OUT[6];
 	  imarray.data_.create(&data_dims_Final);
 
 	  std::vector<std::complex<float> > DATA_Final;

@@ -90,11 +90,11 @@ namespace Gadgetron {
 	       void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const hoNDArray<std::complex<float>>& DATA);
 
 	  // Read BART files
-	  std::vector<size_t> read_BART_hdr(const char *filename);
-	  std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const char *filename);
+	  std::vector<size_t> read_BART_hdr(const std::string& filename);
+	  std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const std::string& filename);
 
 	  // Utility functions
-	  std::string &getOutputFilename(const std::string &bartCommandLine);
+	  std::string getOutputFilename(const std::string& bartCommandLine);
 	  void cleanup(std::string &createdFiles);
 	  void ltrim(std::string &str);
 	  void rtrim(std::string &str);
