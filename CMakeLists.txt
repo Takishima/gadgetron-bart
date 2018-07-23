@@ -4,7 +4,7 @@ project(bart_gadget CXX)
 
 cmake_policy(SET CMP0042 NEW)  # CMake 3.0 ``MACOSX_RPATH`` is enabled by default.
 
-set(BART_GIT_REPOSITORY "git@github.com:Takishima/bart.git")
+set(BART_GIT_REPOSITORY "https://github.com/Takishima/bart.git")
 set(BART_GIT_TAG bart-single-library)
 
 # ==============================================================================
