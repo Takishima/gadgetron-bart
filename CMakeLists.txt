@@ -264,8 +264,8 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
   endif(DOWNLOAD_BUILD_GOT_FOLDER)
 else(BARTMAIN_DOWNLOAD_AND_BUILD)
   add_library(gadgetron_baselbart SHARED ${GADGET_FILES})
-  target_link_libraries(main ${BART_LIBMAIN})
-  target_link_libraries(main ${BART_LIBRARIES})
+  target_link_libraries(gadgetron_baselbart ${BART_LIBMAIN})
+  target_link_libraries(gadgetron_baselbart ${BART_LIBRARIES})
 endif(BARTMAIN_DOWNLOAD_AND_BUILD)
 
 # ------------------------------------------------------------------------------
