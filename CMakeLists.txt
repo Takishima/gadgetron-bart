@@ -61,8 +61,8 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
   set(DOWNLOAD_BUILD_GOT_FOLDER OFF)
   mark_as_advanced(DOWNLOAD_BUILD_GOT_FOLDER)
 
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.7)
-    # If CMake >= 3.7 we can use the FetchContent module
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.11)
+    # If CMake >= 3.11 we can use the FetchContent module
     set(DOWNLOAD_BUILD_GOT_FOLDER ON)
     include(FetchContent)
     FetchContent_Declare(bartmain_git
@@ -76,8 +76,8 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
       add_subdirectory(${bartmain_git_SOURCE_DIR} ${bartmain_git_BINARY_DIR}
 	EXCLUDE_FROM_ALL)
     endif(NOT bartmain_git_POPULATED)
-  else(CMAKE_VERSION VERSION_GREATER_EQUAL 3.7)
-    # If CMake < 3.7 we cannot use the FetchContent module, but we should be
+  else(CMAKE_VERSION VERSION_GREATER_EQUAL 3.11)
+    # If CMake < 3.11 we cannot use the FetchContent module, but we should be
     # able to use the ExternalProject module
     # We therefore force the user to download and configure BART instead of
     # starting the building process when he/she runs "make" the first time
@@ -93,7 +93,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
       setup_default_bart_options(FORCE)
       message(WARNING
 	"                   ********** IMPORTANT **********\n"
-	"Since you're using CMake < 3.7, I cannot use the FetchContent module\n"
+	"Since you're using CMake < 3.11, I cannot use the FetchContent module\n"
 	"After this configuration ends, running \"make all\" will automatically\n"
 	"download and (default) configure BART for compilation into the BartGadget\n"
 	"A second call to \"make all\" will then be required in order to actually\n"
@@ -116,7 +116,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
 	BINARY_DIR "${CMAKE_BINARY_DIR}/bart"
 	)
     endif(EXISTS ${CMAKE_SOURCE_DIR}/bart/CMakeLists.txt)
-  endif(CMAKE_VERSION VERSION_GREATER_EQUAL 3.7)
+  endif(CMAKE_VERSION VERSION_GREATER_EQUAL 3.11)
 
 else(BARTMAIN_DOWNLOAD_AND_BUILD)
   set(BART_LINALG_VENDOR "" CHACHE FILEPATH "Corresponds to LINALG_VENDOR for BART compilation")
