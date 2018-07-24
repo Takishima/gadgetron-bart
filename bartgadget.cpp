@@ -24,6 +24,67 @@
 #include "bart_api.h"
 
 
+namespace internal {
+     void cleanup(const std::string&);
+     class ScopeGuard
+     {
+     public:
+	  ScopeGuard(std::string p) : p_(std::move(p)) {}
+	  ~ScopeGuard()
+	       {
+		    if (is_active_) {
+			 cleanup(p_);
+		    }
+		    deallocate_all_mem_cfl();
+	       }
+
+	  void dismiss() { is_active_ = false; }
+     private:
+	  bool is_active_;
+	  const std::string p_;
+     };
+
+     
+     void cleanup(const std::string &createdFiles)
+     {
+	  boost::filesystem::remove_all(createdFiles);
+     }
+
+     void ltrim(std::string &str)
+     {
+	  str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](int s) {return !std::isspace(s); }));
+     }
+
+     void rtrim(std::string &str)
+     {
+	  str.erase(std::find_if(str.rbegin(), str.rend(), [](int s) {return !std::isspace(s);}).base(), str.end());
+     }
+
+     void trim(std::string &str)
+     {
+	  ltrim(str);
+	  rtrim(str);
+     }
+	
+     std::string get_output_filename(const std::string& bartCommandLine)
+     {
+	  boost::char_separator<char> sep(" ");
+#if 0
+	  boost::tokenizer<boost::char_separator<char>,
+			   std::string::reverse_iterator> tokens(bartCommandLine.rbegin(),
+								 bartCommandLine.rend());
+	  auto tok(*tokens.begin());
+	  return std::string(tok.rbegin(), tok.rend());
+#else 
+	  std::vector<std::string> outputFile;
+	  boost::tokenizer<boost::char_separator<char> > tokens(bartCommandLine, sep);
+	  for (auto tok: tokens)
+	       outputFile.push_back(tok);
+	  return outputFile.back();
+#endif /* 0 */
+     }
+}
+
 namespace Gadgetron {
 
      BartGadget::BartGadget() :
@@ -90,45 +151,6 @@ namespace Gadgetron {
 	  }
      }
 
-     std::string BartGadget::getOutputFilename(const std::string& bartCommandLine)
-     {
-	  boost::char_separator<char> sep(" ");
-#if 0
-	  boost::tokenizer<boost::char_separator<char>,
-			   std::string::reverse_iterator> tokens(bartCommandLine.rbegin(),
-								 bartCommandLine.rend());
-	  auto tok(*tokens.begin());
-	  return std::string(tok.rbegin(), tok.rend());
-#else 
-	  std::vector<std::string> outputFile;
-	  boost::tokenizer<boost::char_separator<char> > tokens(bartCommandLine, sep);
-	  for (auto tok: tokens)
-	       outputFile.push_back(tok);
-	  return outputFile.back();
-#endif /* 0 */
-     }
-
-     inline void BartGadget::cleanup(std::string &createdFiles)
-     {
-	  boost::filesystem::remove_all(createdFiles);
-     }
-
-     inline void BartGadget::ltrim(std::string &str)
-     {
-	  str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](int s) {return !std::isspace(s); }));
-     }
-
-     inline void BartGadget::rtrim(std::string &str)
-     {
-	  str.erase(std::find_if(str.rbegin(), str.rend(), [](int s) {return !std::isspace(s);}).base(), str.end());
-     }
-
-     inline void BartGadget::trim(std::string &str)
-     {
-	  ltrim(str);
-	  rtrim(str);
-     }
-	
      void BartGadget::replace_default_parameters(std::string & str)
      {
 	  std::string::size_type pos = 0u;
@@ -371,17 +393,17 @@ namespace Gadgetron {
 
 	  generatedFilesFolder += "/";
 
+	  internal::ScopeGuard cleanup_guard(outputFolderPath);
+
 	  /*USE WITH CAUTION*/
 	  if (boost::filesystem::exists(generatedFilesFolder) && isBartFolderBeingCachedToVM.value() && !isBartFileBeingStored.value())
 	  {
 	       std::ostringstream cmd;
 	       cmd << "mount -t tmpfs -o size" << AllocateMemorySizeInMegabytes.value() << "M, mode=0755 tmpfs " << generatedFilesFolder;
 	       if (system(cmd.str().c_str())) {
-		    cleanup(outputFolderPath);
 		    return GADGET_FAIL;
 	       }
 	  }
-
 
 	  std::vector<long> DIMS_ref, DIMS;
 
@@ -432,7 +454,6 @@ namespace Gadgetron {
 	       cmd1 << "bart resize -c 0 " << DIMS[0] << " 1 " << DIMS[1] << " 2 " << DIMS[2] << " meas_gadgetron_ref reference_data";
 	       // Pass commands to Bart
 	       if (!call_BART(cmd1.str())) {
-		    cleanup(outputFolderPath);
 		    return GADGET_FAIL;
 	       }
 	  }
@@ -443,7 +464,6 @@ namespace Gadgetron {
 	       cmd2 << "bart scale 1.0 meas_gadgetron input_data";
 
 	  if (!call_BART(cmd2.str())) {
-	       cleanup(outputFolderPath);
 	       return GADGET_FAIL;
 	  }
 
@@ -458,7 +478,7 @@ namespace Gadgetron {
 		    // crop comment
 		    Line = Line.substr(0, Line.find_first_of("#"));
 
-		    trim(Line);
+		    internal::trim(Line);
 		    if (Line.empty() || Line.compare(0, 4, "bart") != 0)
 			 continue;
 				
@@ -466,7 +486,6 @@ namespace Gadgetron {
 		    GDEBUG("%s\n", Line.c_str());
 
 		    if (!call_BART(Line)) {
-			 cleanup(outputFolderPath);
 			 return GADGET_FAIL;
 		    }
 
@@ -479,11 +498,10 @@ namespace Gadgetron {
 	  else
 	  {
 	       GERROR("Unable to open %s\n", CommandScript.c_str());
-	       cleanup(outputFolderPath);
 	       return GADGET_FAIL;
 	  }
 
-	  std::string outputFile = getOutputFilename(Commands_Line);
+	  std::string outputFile = internal::get_output_filename(Commands_Line);
 	  std::string outputFileReshape = outputFile + "_reshape";
 
 	  // Reformat the data back to gadgetron format
@@ -494,7 +512,6 @@ namespace Gadgetron {
 	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape;
 
 	  if (!call_BART(cmd3.str())) {
-	       cleanup(outputFolderPath);
 	       return GADGET_FAIL;
 	  }
 	  
@@ -504,7 +521,6 @@ namespace Gadgetron {
 
 	  if (data == 0 || data == nullptr) {
 	       GERROR("Failed to retrieve data from in-memory CFL file!");
-	       cleanup(outputFolderPath);
 	       return GADGET_FAIL;
 	  }
 
@@ -513,7 +529,9 @@ namespace Gadgetron {
 	  // std::tie(DIMS_OUT, data) = read_BART_files(generatedFilesFolder + outputfileReshape);
 
 	  if (!isBartFileBeingStored.value())
-	       cleanup(outputFolderPath);
+	       internal::cleanup(outputFolderPath);
+	  else
+	       cleanup_guard.dismiss();
 
 	  auto ims = std::make_unique<GadgetContainerMessage<IsmrmrdImageArray>>();
 	  IsmrmrdImageArray & imarray = *ims->getObjectPtr();

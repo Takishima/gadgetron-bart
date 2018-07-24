@@ -83,22 +83,16 @@ namespace Gadgetron {
 		
 	  // Write BART files
 	  template<typename int_t>
-	       void write_BART_hdr(std::string filename, const std::vector<int_t>& DIMS);
+	       static void write_BART_hdr(std::string filename, const std::vector<int_t>& DIMS);
 	  template<typename int_t>
-	       void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const std::vector<std::complex<float>>& DATA);
+	       static void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const std::vector<std::complex<float>>& DATA);
 	  template<typename int_t>
-	       void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const hoNDArray<std::complex<float>>& DATA);
+	       static void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const hoNDArray<std::complex<float>>& DATA);
 
 	  // Read BART files
-	  std::vector<size_t> read_BART_hdr(const std::string& filename);
-	  std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const std::string& filename);
+	  static std::vector<size_t> read_BART_hdr(const std::string& filename);
+	  static std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const std::string& filename);
 
-	  // Utility functions
-	  std::string getOutputFilename(const std::string& bartCommandLine);
-	  void cleanup(std::string &createdFiles);
-	  void ltrim(std::string &str);
-	  void rtrim(std::string &str);
-	  void trim(std::string &str);
 	  void replace_default_parameters(std::string &str);
 	  
 	  bool call_BART(std::string cmdline);	  
