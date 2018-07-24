@@ -168,15 +168,15 @@ namespace Gadgetron {
 
      bool BartGadget::call_BART(std::string cmdline)
      {
-	  GDEBUG_STREAM("Executing BART command: " << cmdline)
+	  GDEBUG_STREAM("Executing BART command: " << cmdline);
 	  enum { MAX_ARGS = 256 };
 
 	  // tokenize the command string into argc/argv (basic, hopefully enough)
 	  int argc(0);
 	  char* argv[MAX_ARGS];
 
-	  auto cmdline_s = std::make_unique<char[]>(cmdline.size());
-	  std::copy(cmdline.cbegin(), cmdline.cend(), cmdline_s.get());
+	  auto cmdline_s = std::make_unique<char[]>(cmdline.size()+1);
+	  strcpy(cmdline_s.get(), cmdline.c_str());
 
 	  char *p2 = strtok(cmdline_s.get(), " ");
 	  while (p2 && argc < MAX_ARGS-1)
@@ -184,12 +184,20 @@ namespace Gadgetron {
 	       argv[argc++] = p2;
 	       p2 = strtok(0, " ");
 	  }
-	  argv[argc] = 0; // TODO: what is this for ???
+	  argv[argc] = 0; // FIXME: what is this for ???
 	  
-	  GDEBUG("BART argv:");
-	  for (auto i(0UL); i < argc; ++i) {
-	       GDEBUG_STREAM("  '" << argv[i] << "'");
-	  }
+	  // boost::char_separator<char> sep(" ");
+	  // boost::tokenizer<boost::char_separator<char>> tokens(cmdline.begin(),
+	  // 						       cmdline.end(),
+	  // 						       sep);
+	  // std::vector<std::unique_ptr<char[]>> tmp;
+	  // auto k(0UL);
+	  // for (auto tok: tokens) {
+	  //      tmp.push_back(std::make_unique<char[]>(tok.size()+1));
+	  //      strcpy(tmp.back().get(), tok.c_str());
+	  //      argv[k++] = tmp.back().get();
+	  // }
+	  // argc = tmp.size();
 
 	  char out_str[512] = {'\0'};
 	  auto ret(in_mem_bart_main(argc, argv, out_str));
@@ -432,7 +440,7 @@ namespace Gadgetron {
 	  if (DIMS[4] != 1)
 	       cmd2 << "bart reshape 1023 " << DIMS[0] << " " << DIMS[1] << " " << DIMS[2] << " " << DIMS[3] << " 1 1 1 " << DIMS[5] << " " << DIMS[6] << " " << DIMS[4] << " meas_gadgetron input_data";
 	  else	
-	       cmd2 << "bart scale 1.0 meas_gadgetron input_data "; // TODO: why does this fail if I remove the trailing space ?!?!
+	       cmd2 << "bart scale 1.0 meas_gadgetron input_data";
 
 	  if (!call_BART(cmd2.str())) {
 	       cleanup(outputFolderPath);
@@ -483,8 +491,7 @@ namespace Gadgetron {
 	  load_mem_cfl(outputFile.c_str(), header.size(), header.data());
 	  // auto header = read_BART_hdr(generatedFilesFolder + outputFile);
 	  cmd3 << "bart reshape 1023 " << header[0] << " " << header[1] << " " << header[2] << " " << header[3] << " " << header[9] * header[4] <<
-	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape
-	       << " "; // FIXME: remove the need for this extra space!
+	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape;
 
 	  if (!call_BART(cmd3.str())) {
 	       cleanup(outputFolderPath);
