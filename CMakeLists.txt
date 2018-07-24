@@ -251,6 +251,18 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
     if(ENABLE_MEM_CFL)
       add_definitions(-DUSE_MEM_CFL)
     endif(ENABLE_MEM_CFL)
+
+    if(ENABLE_LONGJUMP)
+      add_definitions(-DENABLE_LONGJUMP)
+    endif(ENABLE_LONGJUMP)
+
+    if(USE_FFTWTHREADS)
+      add_definitions(-DFFTWTHREADS)
+    endif(USE_FFTWTHREADS)
+
+    if(FORCE_BUILTIN_COMMANDS)
+      add_definitions(-DFORCE_BUILTIN_COMMANDS)
+    endif(FORCE_BUILTIN_COMMANDS)
     
     if(USE_CUDA)
       cuda_wrap_srcs(gadgetron_baselbart OBJ bartsupport_cuda_objs ${bart_support_CUSRCS})

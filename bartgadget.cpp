@@ -374,7 +374,7 @@ namespace Gadgetron {
 	  auto dice_rand = std::bind(std::uniform_int_distribution<int>(1, 10000), std::mt19937(seed));
 	  std::string time_id(buff + std::to_string(dice_rand()));
 	  // Get the current process ID
-	  std::string threadId = boost::lexical_cast<std::string>(boost::this_thread::get_id());
+	  auto threadId = boost::lexical_cast<std::string>(boost::this_thread::get_id());
 	  unsigned long threadNumber = 0;
 	  sscanf(threadId.c_str(), "%lx", &threadNumber);
 	  std::string outputFolderPath = BartWorkingDirectory_path.value() + "bart_" + time_id + "_" + std::to_string(threadNumber);
@@ -412,7 +412,7 @@ namespace Gadgetron {
 	  for (auto recon_bit: m1->getObjectPtr()->rbit_)
 	  {
 	       // Grab a reference to the buffer containing the reference data
-	       hoNDArray< std::complex<float> >& data_ref = (*recon_bit.ref_).data_;
+	       auto& data_ref = (*recon_bit.ref_).data_;
 	       // Data 7D, fixed order [E0, E1, E2, CHA, N, S, LOC]
 	       DIMS_ref.emplace_back(data_ref.get_size(0));
 	       DIMS_ref.emplace_back(data_ref.get_size(1));
@@ -452,7 +452,6 @@ namespace Gadgetron {
 	  if (DIMS_ref != DIMS)
 	  {
 	       cmd1 << "bart resize -c 0 " << DIMS[0] << " 1 " << DIMS[1] << " 2 " << DIMS[2] << " meas_gadgetron_ref reference_data";
-	       // Pass commands to Bart
 	       if (!call_BART(cmd1.str())) {
 		    return GADGET_FAIL;
 	       }
@@ -517,7 +516,7 @@ namespace Gadgetron {
 	  
 	  /**** READ FROM BART FILES ***/
 	  std::vector<long> DIMS_OUT(16);
-	  std::complex<float>* data(reinterpret_cast<std::complex<float>*>(load_mem_cfl(outputFileReshape.c_str(), DIMS_OUT.size(), DIMS_OUT.data())));
+	  auto data(reinterpret_cast<std::complex<float>*>(load_mem_cfl(outputFileReshape.c_str(), DIMS_OUT.size(), DIMS_OUT.data())));
 
 	  if (data == 0 || data == nullptr) {
 	       GERROR("Failed to retrieve data from in-memory CFL file!");
@@ -528,9 +527,7 @@ namespace Gadgetron {
 	  // std::vector<std::complex<float>> data;
 	  // std::tie(DIMS_OUT, data) = read_BART_files(generatedFilesFolder + outputfileReshape);
 
-	  if (!isBartFileBeingStored.value())
-	       internal::cleanup(outputFolderPath);
-	  else
+	  if (isBartFileBeingStored.value())
 	       cleanup_guard.dismiss();
 
 	  auto ims = std::make_unique<GadgetContainerMessage<IsmrmrdImageArray>>();
@@ -574,7 +571,7 @@ namespace Gadgetron {
 			 chunk_dims[1] = data_dims_Final[1];
 			 chunk_dims[2] = data_dims_Final[2];
 			 chunk_dims[3] = data_dims_Final[3];
-			 hoNDArray<std::complex<float> > chunk = hoNDArray<std::complex<float> >(chunk_dims, &DATA(0, 0, 0, 0, n, s, loc));
+			 auto chunk = hoNDArray<std::complex<float> >(chunk_dims, &DATA(0, 0, 0, 0, n, s, loc));
 
 			 Temp_one_1d[0] = chunk_dims[0] * chunk_dims[1] * chunk_dims[2] * chunk_dims[3];
 			 chunk.reshape(Temp_one_1d);
