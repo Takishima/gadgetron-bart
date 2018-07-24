@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(bart_gadget CXX)
+project(bart_gadget C CXX)
 
 cmake_policy(SET CMP0042 NEW)  # CMake 3.0 ``MACOSX_RPATH`` is enabled by default.
 
@@ -12,6 +12,8 @@ set(BART_GIT_TAG bart-single-library)
 option(USE_CUDA "Build using support for CUDA (should match the library BART(main) compile option)" OFF)
 if(USE_CUDA)
   find_package(CUDA)
+  add_definitions(-DUSE_CUDA)
+  list(APPEND CUDA_NVCC_FLAGS "--compiler-options -fPIC")
 endif(USE_CUDA)
 
 option(USE_OPENMP "Build using support for OpenMP" OFF)
@@ -84,10 +86,12 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
     # A rebuilding of the cache after downloading the data is automatically
     # started in order to properly setup the downloaded BART as a
     # sub-directory
+    set(bartmain_git_SOURCE_DIR ${CMAKE_SOURCE_DIR}/bart)
+    
     if(EXISTS ${CMAKE_SOURCE_DIR}/bart/CMakeLists.txt)
       set(DOWNLOAD_BUILD_GOT_FOLDER ON)
       setup_default_bart_options()
-      add_subdirectory(${CMAKE_SOURCE_DIR}/bart ${CMAKE_BINARY_DIR}/bart
+      add_subdirectory(${bartmain_git_SOURCE_DIR} ${CMAKE_BINARY_DIR}/bart
 	EXCLUDE_FROM_ALL)
     else(EXISTS ${CMAKE_SOURCE_DIR}/bart/CMakeLists.txt)
       setup_default_bart_options(FORCE)
@@ -112,7 +116,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
 	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
 
-	SOURCE_DIR "${CMAKE_SOURCE_DIR}/bart"
+	SOURCE_DIR ${bartmain_git_SOURCE_DIR}
 	BINARY_DIR "${CMAKE_BINARY_DIR}/bart"
 	)
     endif(EXISTS ${CMAKE_SOURCE_DIR}/bart/CMakeLists.txt)
@@ -226,14 +230,38 @@ link_directories(${GADGETRON_LIB_DIR})
 
 # ==============================================================================
 
+
 if(BARTMAIN_DOWNLOAD_AND_BUILD)
   if(DOWNLOAD_BUILD_GOT_FOLDER)
+    get_directory_property(BARTSUPPORT_EXTRA_FILES DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES)
+    get_directory_property(BARTMAIN_EXTRA_FILES DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES)
+    get_directory_property(bart_support_CUSRCS DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION bart_support_CUSRCS)
+
+    if(USE_SUPER_DEBUG)
+      add_definitions(-DBART_SUPER_DEBUG)
+    endif(USE_SUPER_DEBUG)
+    
+    if(USE_MEMONLY_CFL)
+      if(NOT ENABLE_MEM_CFL)
+	set(ENABLE_MEM_CFL ON)
+      endif(NOT ENABLE_MEM_CFL)
+      add_definitions(-DMEMONLY_CFL)
+    endif(USE_MEMONLY_CFL)
+
+    if(ENABLE_MEM_CFL)
+      add_definitions(-DUSE_MEM_CFL)
+    endif(ENABLE_MEM_CFL)
+    
+    if(USE_CUDA)
+      cuda_wrap_srcs(gadgetron_baselbart OBJ bartsupport_cuda_objs ${bart_support_CUSRCS})
+    endif(USE_CUDA)
+    
     add_library(gadgetron_baselbart SHARED
       ${GADGET_FILES}
       $<TARGET_OBJECTS:bartsupport_objs>
       $<TARGET_OBJECTS:bartmain_objs>
-      ${BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES}
-      ${BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES}
+      ${BARTSUPPORT_EXTRA_FILES}
+      ${BARTMAIN_EXTRA_FILES}
       ${bartsupport_cuda_objs})
     get_property(BARTMAIN_LIBS TARGET bartmain PROPERTY LINK_LIBRARIES)
     get_property(BARTSUPPORT_LIBS TARGET bartsupport PROPERTY LINK_LIBRARIES)
@@ -290,14 +318,14 @@ if(TARGET gadgetron_baselbart)
     ${Boost_LIBRARIES}
     )
 
-  # if(USE_CUDA)
-  #   CUDA_ADD_CUFFT_TO_TARGET(gadgetron_baselbart)
-  #   CUDA_ADD_CUBLAS_TO_TARGET(gadgetron_baselbart)
-  #   target_link_libraries(gadgetron_baselbart ${CUDA_LIBRARIES})
-  # endif(USE_CUDA)
+  if(USE_CUDA)
+    CUDA_ADD_CUFFT_TO_TARGET(gadgetron_baselbart)
+    CUDA_ADD_CUBLAS_TO_TARGET(gadgetron_baselbart)
+    target_link_libraries(gadgetron_baselbart ${CUDA_LIBRARIES})
+  endif(USE_CUDA)
 
   if(ARMADILLO_FOUND)
-    target_link_libraries(gadgetron_baselbart gadgetron_toolbox_cpucore_math )
+    target_link_libraries(gadgetron_baselbart gadgetron_toolbox_cpucore_math)
   endif(ARMADILLO_FOUND)
   
   # ------------------------------------------------------------------------------

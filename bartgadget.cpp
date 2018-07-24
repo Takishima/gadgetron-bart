@@ -188,7 +188,7 @@ namespace Gadgetron {
 	  
 	  GDEBUG("BART argv:");
 	  for (auto i(0UL); i < argc; ++i) {
-	       GDEBUG_STREAM("  " << argv[i]);
+	       GDEBUG_STREAM("  '" << argv[i] << "'");
 	  }
 
 	  char out_str[512] = {'\0'};
@@ -479,9 +479,12 @@ namespace Gadgetron {
 	  std::string outputFileReshape = outputFile + "_reshape";
 
 	  // Reformat the data back to gadgetron format
-	  auto header = read_BART_hdr(generatedFilesFolder + outputFile);
+	  std::vector<long> header(16);
+	  load_mem_cfl(outputFile.c_str(), header.size(), header.data());
+	  // auto header = read_BART_hdr(generatedFilesFolder + outputFile);
 	  cmd3 << "bart reshape 1023 " << header[0] << " " << header[1] << " " << header[2] << " " << header[3] << " " << header[9] * header[4] <<
-	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape;
+	       " " << header[5] << " " << header[6] << " " << header[7] << " " << header[8] << " 1 " << outputFile << " " << outputFileReshape
+	       << " "; // FIXME: remove the need for this extra space!
 
 	  if (!call_BART(cmd3.str())) {
 	       cleanup(outputFolderPath);
