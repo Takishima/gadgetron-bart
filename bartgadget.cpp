@@ -401,46 +401,52 @@ namespace Gadgetron {
 	       }
 	  }
 
-	  std::vector<long> DIMS_ref, DIMS;
-
 	  /*** WRITE REFERENCE AND RAW DATA TO FILES ***/
 
-	  for (auto recon_bit: m1->getObjectPtr()->rbit_)
-	  {
-	       // Grab a reference to the buffer containing the reference data
-	       auto& data_ref = (*recon_bit.ref_).data_;
-	       // Data 7D, fixed order [E0, E1, E2, CHA, N, S, LOC]
-	       DIMS_ref = {static_cast<long>(data_ref.get_size(0)),
-			   static_cast<long>(data_ref.get_size(1)),
-			   static_cast<long>(data_ref.get_size(2)),
-			   static_cast<long>(data_ref.get_size(3)),
-			   static_cast<long>(data_ref.get_size(4)),
-			   static_cast<long>(data_ref.get_size(5)),
-			   static_cast<long>(data_ref.get_size(6))};
-
-	       // Grab a reference to the buffer containing the image data
-	       auto& data = recon_bit.data_.data_;
-	       // Data 7D, fixed order [E0, E1, E2, CHA, N, S, LOC]
-	       DIMS = {static_cast<long>(data.get_size(0)),
-		       static_cast<long>(data.get_size(1)),
-		       static_cast<long>(data.get_size(2)),
-		       static_cast<long>(data.get_size(3)),
-		       static_cast<long>(data.get_size(4)),
-		       static_cast<long>(data.get_size(5)),
-		       static_cast<long>(data.get_size(6))};
-
-	       /* The reference data will be pointing to the image data if there is
-		  no reference scan. Therefore, we won't write the reference data
-		  into files if it's pointing to the raw data.*/
-	       if (DIMS_ref != DIMS)
-	       {
-		    // write_BART_Files(std::string(generatedFilesFolder + "meas_gadgetron_ref"), DIMS_ref, data_ref);
-		    register_mem_cfl_non_managed("meas_gadgetron_ref", DIMS.size(), &DIMS_ref[0], &data_ref[0]);
-	       }
-
-	       // write_BART_Files(std::string(generatedFilesFolder + "meas_gadgetron"), DIMS, data);
-	       register_mem_cfl_non_managed("meas_gadgetron", DIMS.size(), &DIMS[0], &data[0]);
+	  if (m1->getObjectPtr()->rbit_.empty()) {
+	       GWARN("BartGadget did not receive any data to process, exiting now...");
+	       return GADGET_OK;
 	  }
+	  else if (m1->getObjectPtr()->rbit_.size() > 1) {
+	       GWARN("BartGadget does not know how to handle multiple input datasets... selecting the last one");
+	  }
+
+	  auto recon_bit_pos(m1->getObjectPtr()->rbit_.size()-1);
+	  auto recon_bit = m1->getObjectPtr()->rbit_.back();
+
+	  // Grab a reference to the buffer containing the reference data
+	  auto& input_ref = (*recon_bit.ref_).data_;
+	  // Data 7D, fixed order [E0, E1, E2, CHA, N, S, LOC]
+	  std::vector<long> DIMS_ref{static_cast<long>(input_ref.get_size(0)),
+				     static_cast<long>(input_ref.get_size(1)),
+				     static_cast<long>(input_ref.get_size(2)),
+				     static_cast<long>(input_ref.get_size(3)),
+				     static_cast<long>(input_ref.get_size(4)),
+				     static_cast<long>(input_ref.get_size(5)),
+				     static_cast<long>(input_ref.get_size(6))};
+
+	  // Grab a reference to the buffer containing the image data
+	  auto& input = recon_bit.data_.data_;
+	  // Data 7D, fixed order [E0, E1, E2, CHA, N, S, LOC]
+	  std::vector<long> DIMS{static_cast<long>(input.get_size(0)),
+				 static_cast<long>(input.get_size(1)),
+				 static_cast<long>(input.get_size(2)),
+				 static_cast<long>(input.get_size(3)),
+				 static_cast<long>(input.get_size(4)),
+				 static_cast<long>(input.get_size(5)),
+				 static_cast<long>(input.get_size(6))};
+
+	  /* The reference data will be pointing to the image data if there is
+	     no reference scan. Therefore, we won't write the reference data
+	     into files if it's pointing to the raw data.*/
+	  if (DIMS_ref != DIMS)
+	  {
+	       // write_BART_Files(std::string(generatedFilesFolder + "meas_gadgetron_ref"), DIMS_ref, data_ref);
+	       register_mem_cfl_non_managed("meas_gadgetron_ref", DIMS.size(), &DIMS_ref[0], &input_ref[0]);
+	  }
+
+	  // write_BART_Files(std::string(generatedFilesFolder + "meas_gadgetron"), DIMS, data);
+	  register_mem_cfl_non_managed("meas_gadgetron", DIMS.size(), &DIMS[0], &input[0]);
 
 	  /* Before calling Bart let's do some bookkeeping */
 	  std::replace(generatedFilesFolder.begin(), generatedFilesFolder.end(), '\\', '/');
@@ -532,8 +538,7 @@ namespace Gadgetron {
 	  if (isBartFileBeingStored.value())
 	       cleanup_guard.dismiss();
 
-	  auto ims = std::make_unique<GadgetContainerMessage<IsmrmrdImageArray>>();
-	  IsmrmrdImageArray & imarray = *ims->getObjectPtr();
+	  IsmrmrdImageArray imarray;
 
 	  // Grab data from BART files
 	  std::vector<size_t> BART_DATA_dims{
@@ -554,7 +559,7 @@ namespace Gadgetron {
 					      static_cast<size_t>(DIMS_OUT[5]),
 					      static_cast<size_t>(DIMS_OUT[6])};
 	  assert(header[4] > 0);
-	  imarray.data_.create(&data_dims_Final);
+	  imarray.data_.create(data_dims_Final);
 
 	  std::vector<std::complex<float> > DATA_Final;
 	  DATA_Final.reserve(std::accumulate(data_dims_Final.begin(), data_dims_Final.end(), 1, std::multiplies<size_t>()));
@@ -576,12 +581,9 @@ namespace Gadgetron {
 
 	  std::copy(DATA_Final.begin(), DATA_Final.end(), imarray.data_.begin());
 
-	  // Fill image header 
-	  for (size_t it = 0, rbit_size = m1->getObjectPtr()->rbit_.size(); it != rbit_size; ++it)
-	  {
-	       compute_image_header(m1->getObjectPtr()->rbit_[it], imarray, it);
-	       send_out_image_array(m1->getObjectPtr()->rbit_[it], imarray, it, image_series.value() + (static_cast<int>(it) + 1), GADGETRON_IMAGE_REGULAR);
-	  }
+	  const auto& it(recon_bit_pos); // for convenience only
+	  compute_image_header(recon_bit, imarray, it);
+	  send_out_image_array(recon_bit, imarray, it, image_series.value() + (static_cast<int>(it) + 1), GADGETRON_IMAGE_REGULAR);
 
 	  m1->release();
 	  return GADGET_OK;
