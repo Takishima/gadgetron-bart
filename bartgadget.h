@@ -65,74 +65,61 @@ namespace Gadgetron {
 	  GADGET_PROPERTY(isVerboseON, bool, "Display some information about the incoming data", false);
 	  GADGET_PROPERTY(BartWorkingDirectory_path, std::string, "Absolute path to temporary file location", "/tmp/gadgetron/");
 	  GADGET_PROPERTY(AbsoluteBartCommandScript_path, std::string, "Absolute path to bart script(s)", get_gadgetron_home().string() + "/share/gadgetron/bart");
-	  GADGET_PROPERTY(BartCommandScript_name, std::string, "Script file containing bart command(s) to be loaded", "");
-	  GADGET_PROPERTY(isBartFileBeingStored, bool, "Store Bart file", false);
-
+	  GADGET_PROPERTY(BartCommandScript_name, std::string, "Script file containing BART command(s) to be loaded", "");
+	  GADGET_PROPERTY(isBartFileBeingStored, bool, "Store BART file on the disk", false);
 	  GADGET_PROPERTY(image_series, int, "Set image series", 0);
 
 	  /*Caution: this option must be enable only if the user has root privilege and able to allocation virtual memory*/
-	  GADGET_PROPERTY(isBartFolderBeingCachedToVM, bool, "Mount bart directory to the virtual memory for better performance", false);
+	  GADGET_PROPERTY(isBartFolderBeingCachedToVM, bool, "Mount bart directory to virtual memory (tmpfs) for better performance", false);
 	  GADGET_PROPERTY(AllocateMemorySizeInMegabytes, int, "Allocate memory to bart directory", 50);
 
 	  int process_config(ACE_Message_Block* mb);
 	  int process(GadgetContainerMessage<IsmrmrdReconData>* m1);		
 
-
      private:
 	  Default_parameters dp;
 		
-	  // Write BART files
-	  template<typename int_t>
-	       static void write_BART_hdr(std::string filename, const std::vector<int_t>& DIMS);
-	  template<typename int_t>
-	       static void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const std::vector<std::complex<float>>& DATA);
-	  template<typename int_t>
-	       static void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const hoNDArray<std::complex<float>>& DATA);
-
-	  // Read BART files
-	  static std::vector<size_t> read_BART_hdr(const std::string& filename);
-	  static std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const std::string& filename);
-
 	  void replace_default_parameters(std::string &str);
 	  
 	  bool call_BART(std::string cmdline);	  
      };
 
+     // Read BART files
+     std::vector<size_t> read_BART_hdr(const std::string& filename);
+     std::pair< std::vector<size_t>, std::vector<std::complex<float> > > read_BART_files(const std::string& filename);
+
 
      template<typename int_t>
-     void BartGadget::write_BART_hdr(std::string filename, const std::vector<int_t>& DIMS)
+     void write_BART_hdr(std::string filename, const std::vector<int_t>& DIMS)
      {
 	  constexpr size_t MAX_DIMS = 16;
-	  filename += ".hdr";
 	  std::vector<size_t> v(MAX_DIMS, 1);
 	  assert(DIMS.size() < MAX_DIMS);
 	  std::copy(DIMS.cbegin(), DIMS.cend(), v.begin());
-	  std::ofstream pFile(filename);
-	  if (!pFile.is_open())
-	       GERROR("Failed to write into file: %s\n", filename);
+	  std::ofstream pFile(filename + ".hdr");
+	  if (!pFile)
+	       GERROR("Failed to write into header file: %s\n", filename);
 	  pFile << "# Dimensions\n";
 	  std::copy(v.cbegin(), v.cend(), std::ostream_iterator<size_t>(pFile, " "));
      }
 
      template<typename int_t>
-     void BartGadget::write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const std::vector<std::complex<float>>& DATA)
+     void write_BART_Files(std::string filename, const std::vector<int_t>& DIMS, const std::vector<std::complex<float>>& DATA)
      {
 	  write_BART_hdr(filename, DIMS);
-	  filename += ".cfl";
-	  std::ofstream pFile(filename, std::ofstream::out | std::ofstream::binary);
-	  if (!pFile.is_open())
-	       GERROR("Failed to write into file: %s\n", filename);
+	  std::ofstream pFile(filename + ".cfl", std::ofstream::out | std::ofstream::binary);
+	  if (!pFile)
+	       GERROR("Failed to write into CFL file: %s\n", filename);
 	  pFile.write(reinterpret_cast<const char*>(&DATA[0]), DATA.size() * sizeof(std::complex<float>));
      }
      
      template<typename int_t>
-     void BartGadget::write_BART_Files(std::string filename, const std::vector<int_t>&DIMS, const hoNDArray<std::complex<float>>& DATA)
+     void write_BART_Files(std::string filename, const std::vector<int_t>&DIMS, const hoNDArray<std::complex<float>>& DATA)
      {
 	  write_BART_hdr(filename, DIMS);
-	  filename += ".cfl";
-	  std::ofstream pFile(filename, std::ofstream::out | std::ofstream::binary);
-	  if (!pFile.is_open())
-	       GERROR("Failed to write into file: %s\n", filename);
+	  std::ofstream pFile(filename + ".cfl", std::ofstream::out | std::ofstream::binary);
+	  if (!pFile)
+	       GERROR("Failed to write into CFL file: %s\n", filename);
 	  pFile.write(reinterpret_cast<const char*>(&DATA[0]), DATA.get_number_of_bytes());
      }
 } // namespace Gadgetron

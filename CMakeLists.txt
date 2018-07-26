@@ -12,7 +12,6 @@ set(BART_GIT_TAG bart-single-library)
 option(USE_CUDA "Build using support for CUDA (should match the library BART(main) compile option)" OFF)
 if(USE_CUDA)
   find_package(CUDA)
-  add_definitions(-DUSE_CUDA)
   list(APPEND CUDA_NVCC_FLAGS "--compiler-options -fPIC")
 endif(USE_CUDA)
 
@@ -28,24 +27,57 @@ endif(USE_OPENMP)
 # ==============================================================================
 
 macro(setup_default_bart_options)
-  set(BARTMAIN_AUTOCOPY      OFF CACHE STRING "" ${ARGN})
-  set(BUILD_TESTING          OFF CACHE STRING "" ${ARGN})
-  set(CREATE_PYTHON_MODULE   OFF CACHE STRING "" ${ARGN})
-  set(DISABLE_PNG            ON  CACHE STRING "" ${ARGN})
-  set(ENABLE_LONGJUMP        ON  CACHE STRING "" ${ARGN})
-  set(ENABLE_MEM_CFL         ON  CACHE STRING "" ${ARGN})
-  set(FORCE_BUILTIN_COMMANDS ON  CACHE STRING "" ${ARGN})
-  set(GENERATE_DOC           OFF CACHE STRING "" ${ARGN})
-  set(USE_FFTWTHREADS        ON  CACHE STRING "" ${ARGN})
-  set(USE_FPIC               ON  CACHE STRING "" ${ARGN})
-  set(USE_LOCAL_FFTW         OFF CACHE STRING "" ${ARGN})
-  set(USE_LOG_BACKEND        OFF CACHE STRING "" ${ARGN})
-  set(USE_MEMONLY_CFL        ON  CACHE STRING "" ${ARGN})
+  set(BARTMAIN_AUTOCOPY         OFF CACHE STRING "" ${ARGN})
+  set(BUILD_TESTING             OFF CACHE STRING "" ${ARGN})
+  set(CREATE_PYTHON_MODULE      OFF CACHE STRING "" ${ARGN})
+  set(DISABLE_PNG               ON  CACHE STRING "" ${ARGN})
+  set(ENABLE_LONGJUMP           ON  CACHE STRING "" ${ARGN})
+  set(ENABLE_MEM_CFL            ON  CACHE STRING "" ${ARGN})
+  set(FORCE_BUILTIN_COMMANDS    ON  CACHE STRING "" ${ARGN})
+  set(GENERATE_DOC              OFF CACHE STRING "" ${ARGN})
+  set(USE_FFTWTHREADS           ON  CACHE STRING "" ${ARGN})
+  set(USE_FPIC                  ON  CACHE STRING "" ${ARGN})
+  set(USE_LOCAL_FFTW            OFF CACHE STRING "" ${ARGN})
+  set(USE_LOG_BACKEND           ON  CACHE STRING "" ${ARGN})
+  set(USE_LOG_GADGETRON_BACKEND ON  CACHE STRING "" ${ARGN})
+  set(USE_LOG_SIEMENS_BACKEND   OFF CACHE STRING "" ${ARGN})
+  set(USE_LOG_ORCHESTRA_BACKEND OFF CACHE STRING "" ${ARGN})
+  set(USE_MEMONLY_CFL           ON  CACHE STRING "" ${ARGN})
+  set(REDEFINE_PRINTF_FOR_TRACE ON  CACHE STRING "" ${ARGN})
 
   set(LINALG_VENDOR ${BART_LINALG_VENDOR} CACHE STRING "" ${ARGN})
 endmacro()
 
 # ------------------------------------------------------------------------------
+
+macro(maybe_add_definitions opt_name)
+  if(${opt_name})
+    if(${${ARGN}})
+      add_definitions(-D${ARGN})
+    else(${${ARGN}})
+      add_definitions(-D${opt_name})
+    endif(${${ARGN}})
+  endif(${opt_name})
+endmacro()
+
+# ==============================================================================
+# Bootstrap search for libraries 
+# (We need to find cmake modules in Gadgetron)
+
+find_path(GADGETRON_CMAKE_MODULES FindGadgetron.cmake
+  HINTS
+  $ENV{GADGETRON_HOME}/share/gadgetron/cmake
+  /usr/local/gadgetron)
+
+if(NOT GADGETRON_CMAKE_MODULES)
+  message(FATAL_ERROR "GADGETRON_CMAKE_MODULES cannot be found. 
+   Try to set GADGETRON_HOME environment variable.")
+endif(NOT GADGETRON_CMAKE_MODULES)
+
+list(APPEND CMAKE_MODULE_PATH ${GADGETRON_CMAKE_MODULES})
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+
+# ==============================================================================
 
 if(NOT DEFINED BART_LINALG_VENDOR)
   set(BART_LINALG_VENDOR "NOT-DEFINED" CACHE FILEPATH "Corresponds to LINALG_VENDOR for BART compilation")
@@ -77,6 +109,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
       FetchContent_Populate(bartmain_git)
       add_subdirectory(${bartmain_git_SOURCE_DIR} ${bartmain_git_BINARY_DIR}
 	EXCLUDE_FROM_ALL)
+      include_directories(${bartmain_git_SOURCE_DIR}/src)
     endif(NOT bartmain_git_POPULATED)
   else(CMAKE_VERSION VERSION_GREATER_EQUAL 3.11)
     # If CMake < 3.11 we cannot use the FetchContent module, but we should be
@@ -93,6 +126,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
       setup_default_bart_options()
       add_subdirectory(${bartmain_git_SOURCE_DIR} ${CMAKE_BINARY_DIR}/bart
 	EXCLUDE_FROM_ALL)
+      include_directories(${bartmain_git_SOURCE_DIR}/src)
     else(EXISTS ${CMAKE_SOURCE_DIR}/bart/CMakeLists.txt)
       setup_default_bart_options(FORCE)
       message(WARNING
@@ -139,7 +173,7 @@ endif(BARTMAIN_DOWNLOAD_AND_BUILD)
 # ==============================================================================
 
 include(CheckCXXCompilerFlag)
-set(CXX_STANDARDS 17 14) # could maybe add 11 with some changes to the code
+set(CXX_STANDARDS 20 17 14) # could maybe add 11 with some changes to the code
 
 set(CXX_STANDARD_FOUND 0)
 foreach(year ${CXX_STANDARDS})
@@ -164,23 +198,6 @@ if (WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /W3")
   add_definitions(-D__BUILD_GADGETRON_bartgadget__)
 endif (WIN32)
-
-# ==============================================================================
-# Bootstrap search for libraries 
-# (We need to find cmake modules in Gadgetron)
-
-find_path(GADGETRON_CMAKE_MODULES FindGadgetron.cmake
-  HINTS
-  $ENV{GADGETRON_HOME}/share/gadgetron/cmake
-  /usr/local/gadgetron)
-
-if(NOT GADGETRON_CMAKE_MODULES)
-  message(FATAL_ERROR "GADGETRON_CMAKE_MODULES cannot be found. 
-   Try to set GADGETRON_HOME environment variable.")
-endif(NOT GADGETRON_CMAKE_MODULES)
-
-list(APPEND CMAKE_MODULE_PATH ${GADGETRON_CMAKE_MODULES})
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # ==============================================================================
 
@@ -235,34 +252,21 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
   if(DOWNLOAD_BUILD_GOT_FOLDER)
     get_directory_property(BARTSUPPORT_EXTRA_FILES DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES)
     get_directory_property(BARTMAIN_EXTRA_FILES DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES)
+    get_directory_property(BARTMAIN_LOG_FILES DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION LOG_BACKEND_SRCS)
     get_directory_property(bart_support_CUSRCS DIRECTORY ${bartmain_git_SOURCE_DIR} DEFINITION bart_support_CUSRCS)
 
-    if(USE_SUPER_DEBUG)
-      add_definitions(-DBART_SUPER_DEBUG)
-    endif(USE_SUPER_DEBUG)
-    
-    if(USE_MEMONLY_CFL)
-      if(NOT ENABLE_MEM_CFL)
-	set(ENABLE_MEM_CFL ON)
-      endif(NOT ENABLE_MEM_CFL)
-      add_definitions(-DMEMONLY_CFL)
-    endif(USE_MEMONLY_CFL)
+    if(USE_MEMONLY_CFL AND NOT ENABLE_MEM_CFL)
+      set(ENABLE_MEM_CFL ON)
+    endif(USE_MEMONLY_CFL AND NOT ENABLE_MEM_CFL)
 
-    if(ENABLE_MEM_CFL)
-      add_definitions(-DUSE_MEM_CFL)
-    endif(ENABLE_MEM_CFL)
-
-    if(ENABLE_LONGJUMP)
-      add_definitions(-DENABLE_LONGJUMP)
-    endif(ENABLE_LONGJUMP)
-
-    if(USE_FFTWTHREADS)
-      add_definitions(-DFFTWTHREADS)
-    endif(USE_FFTWTHREADS)
-
-    if(FORCE_BUILTIN_COMMANDS)
-      add_definitions(-DFORCE_BUILTIN_COMMANDS)
-    endif(FORCE_BUILTIN_COMMANDS)
+    maybe_add_definitions(ENABLE_MEM_CFL)
+    maybe_add_definitions(ENABLE_LONGJUMP)
+    maybe_add_definitions(USE_FFTWTHREADS FFTWTHREADS)
+    maybe_add_definitions(FORCE_BUILTIN_COMMANDS)
+    maybe_add_definitions(REDEFINE_PRINTF_FOR_TRACE)
+    maybe_add_definitions(USE_CUDA)
+    maybe_add_definitions(USE_MEMONLY_CFL MEMONLY_CFL)
+    maybe_add_definitions(USE_SUPER_DEBUG BART_SUPER_DEBUG)
     
     if(USE_CUDA)
       cuda_wrap_srcs(gadgetron_baselbart OBJ bartsupport_cuda_objs ${bart_support_CUSRCS})
@@ -274,6 +278,7 @@ if(BARTMAIN_DOWNLOAD_AND_BUILD)
       $<TARGET_OBJECTS:bartmain_objs>
       ${BARTSUPPORT_EXTRA_FILES}
       ${BARTMAIN_EXTRA_FILES}
+      ${BARTMAIN_LOG_FILES}
       ${bartsupport_cuda_objs})
     get_property(BARTMAIN_LIBS TARGET bartmain PROPERTY LINK_LIBRARIES)
     get_property(BARTSUPPORT_LIBS TARGET bartsupport PROPERTY LINK_LIBRARIES)
